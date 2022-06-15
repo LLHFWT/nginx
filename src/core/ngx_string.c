@@ -643,7 +643,7 @@ ngx_strcasecmp(u_char *s1, u_char *s2)
 
         c1 = (c1 >= 'A' && c1 <= 'Z') ? (c1 | 0x20) : c1;
         c2 = (c2 >= 'A' && c2 <= 'Z') ? (c2 | 0x20) : c2;
-
+        // 遇到相等的需要继续比较
         if (c1 == c2) {
 
             if (c1) {
@@ -652,7 +652,7 @@ ngx_strcasecmp(u_char *s1, u_char *s2)
 
             return 0;
         }
-
+        // 不相等直接返回结果
         return c1 - c2;
     }
 }
@@ -698,6 +698,7 @@ ngx_strnstr(u_char *s1, char *s2, size_t len)
     n = ngx_strlen(s2);
 
     do {
+        // 跳过s1和s2开头不相等的字符，不需要比较
         do {
             if (len-- == 0) {
                 return NULL;
@@ -710,7 +711,7 @@ ngx_strnstr(u_char *s1, char *s2, size_t len)
             }
 
         } while (c1 != c2);
-
+        // 如果跳过后的长度s1<s2，则不需要比较了
         if (n > len) {
             return NULL;
         }
@@ -789,10 +790,12 @@ ngx_strlcasestrn(u_char *s1, u_char *last, u_char *s2, size_t n)
 
     c2 = (ngx_uint_t) *s2++;
     c2 = (c2 >= 'A' && c2 <= 'Z') ? (c2 | 0x20) : c2;
+    // 预先减去n，以免越界
     last -= n;
 
     do {
         do {
+            // 判断s1别越界
             if (s1 >= last) {
                 return NULL;
             }
