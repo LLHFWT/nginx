@@ -46,7 +46,7 @@ typedef struct {
 
 #define ngx_tolower(c)      (u_char) ((c >= 'A' && c <= 'Z') ? (c | 0x20) : c)
 #define ngx_toupper(c)      (u_char) ((c >= 'a' && c <= 'z') ? (c & ~0x20) : c)
-
+// 字符串转为小写，放置在dst处
 void ngx_strlow(u_char *dst, u_char *src, size_t n);
 
 
@@ -59,7 +59,7 @@ void ngx_strlow(u_char *dst, u_char *src, size_t n);
 
 #define ngx_strstr(s1, s2)  strstr((const char *) s1, (const char *) s2)
 #define ngx_strlen(s)       strlen((const char *) s)
-
+// 计算字符串长度，不超过n
 size_t ngx_strnlen(u_char *p, size_t n);
 // 在字符串中查找字符
 #define ngx_strchr(s1, c)   strchr((const char *) s1, (int) c)
@@ -148,9 +148,11 @@ ngx_copy(u_char *dst, u_char *src, size_t len)
 /* msvc and icc7 compile memcmp() to the inline loop */
 #define ngx_memcmp(s1, s2, n)  memcmp((const char *) s1, (const char *) s2, n)
 
-
+// 将至多n个字符拷贝到dst，遇到\0时结束
 u_char *ngx_cpystrn(u_char *dst, u_char *src, size_t n);
+// 复制出一块新的字符串，使用pool分配内存
 u_char *ngx_pstrdup(ngx_pool_t *pool, ngx_str_t *src);
+// ngx_cdecl是预留的函数调用方式
 u_char * ngx_cdecl ngx_sprintf(u_char *buf, const char *fmt, ...);
 u_char * ngx_cdecl ngx_snprintf(u_char *buf, size_t max, const char *fmt, ...);
 u_char * ngx_cdecl ngx_slprintf(u_char *buf, u_char *last, const char *fmt,
@@ -158,20 +160,26 @@ u_char * ngx_cdecl ngx_slprintf(u_char *buf, u_char *last, const char *fmt,
 u_char *ngx_vslprintf(u_char *buf, u_char *last, const char *fmt, va_list args);
 #define ngx_vsnprintf(buf, max, fmt, args)                                   \
     ngx_vslprintf(buf, buf + (max), fmt, args)
-
+// 忽略大小写比较
 ngx_int_t ngx_strcasecmp(u_char *s1, u_char *s2);
 ngx_int_t ngx_strncasecmp(u_char *s1, u_char *s2, size_t n);
 
+// 在s1中查找字符串s2，若找到则返回s1中的位置，查找长度不超过n，s2的长度是strlen(s2)
 u_char *ngx_strnstr(u_char *s1, char *s2, size_t n);
-
+// 在s1种查找s2，n是s2的长度,未找到时返回NULL
 u_char *ngx_strstrn(u_char *s1, char *s2, size_t n);
 u_char *ngx_strcasestrn(u_char *s1, char *s2, size_t n);
+// last是s1的终止字符
 u_char *ngx_strlcasestrn(u_char *s1, u_char *last, u_char *s2, size_t n);
-
+// 从右向左比较两个字符串，比较长度<=n
 ngx_int_t ngx_rstrncmp(u_char *s1, u_char *s2, size_t n);
+// 忽略大小写从右向左比较
 ngx_int_t ngx_rstrncasecmp(u_char *s1, u_char *s2, size_t n);
+// 内存大小比较，s1和s2的长度分别是n1和n2
 ngx_int_t ngx_memn2cmp(u_char *s1, u_char *s2, size_t n1, size_t n2);
+// 表示dns的字符串的大小比较,'.'视为最小字符
 ngx_int_t ngx_dns_strcmp(u_char *s1, u_char *s2);
+// 表示文件路径的字符串大小比较，'/'视为最小字符
 ngx_int_t ngx_filename_cmp(u_char *s1, u_char *s2, size_t n);
 
 ngx_int_t ngx_atoi(u_char *line, size_t n);
