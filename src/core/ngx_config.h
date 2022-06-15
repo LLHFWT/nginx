@@ -97,7 +97,10 @@ typedef intptr_t        ngx_flag_t;
 #define NGX_ALIGNMENT   sizeof(unsigned long)    /* platform word */
 #endif
 
+/* 值对齐，这里要求a是2的整数倍，反码~(a-1)的低位全是0，相与后得到的即是a的整数倍值
+   但此时得到的值是小于等于d的，为了得到大于等于d的值，需要加上a-1 */
 #define ngx_align(d, a)     (((d) + (a - 1)) & ~(a - 1))
+// 指针地址值对齐，和上面类似
 #define ngx_align_ptr(p, a)                                                   \
     (u_char *) (((uintptr_t) (p) + ((uintptr_t) a - 1)) & ~((uintptr_t) a - 1))
 
