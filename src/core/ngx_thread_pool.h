@@ -13,7 +13,7 @@
 #include <ngx_core.h>
 #include <ngx_event.h>
 
-
+// typedef struct ngx_thread_task_s     ngx_thread_task_t;
 struct ngx_thread_task_s {
     ngx_thread_task_t   *next;
     ngx_uint_t           id;
