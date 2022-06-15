@@ -36,7 +36,7 @@ typedef struct {
     u_char     *data;
 } ngx_variable_value_t;
 
-
+// 根据c字符串创建ngx_str
 #define ngx_string(str)     { sizeof(str) - 1, (u_char *) str }
 #define ngx_null_string     { 0, NULL }
 #define ngx_str_set(str, text)                                               \
@@ -61,7 +61,7 @@ void ngx_strlow(u_char *dst, u_char *src, size_t n);
 #define ngx_strlen(s)       strlen((const char *) s)
 
 size_t ngx_strnlen(u_char *p, size_t n);
-
+// 在字符串中查找字符
 #define ngx_strchr(s1, c)   strchr((const char *) s1, (int) c)
 
 static ngx_inline u_char *
@@ -103,6 +103,7 @@ void *ngx_memcpy(void *dst, const void *src, size_t n);
  * gcc3 compiles memcpy(d, s, 4) to the inline "mov"es.
  * icc8 compile memcpy(d, s, 4) to the inline "mov"es or XMM moves.
  */
+// memcpy返回dst指针， cpymem返回copy后的末尾指针
 #define ngx_memcpy(dst, src, n)   (void) memcpy(dst, src, n)
 #define ngx_cpymem(dst, src, n)   (((u_char *) memcpy(dst, src, n)) + (n))
 
