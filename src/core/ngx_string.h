@@ -182,13 +182,20 @@ ngx_int_t ngx_dns_strcmp(u_char *s1, u_char *s2);
 // 表示文件路径的字符串大小比较，'/'视为最小字符
 ngx_int_t ngx_filename_cmp(u_char *s1, u_char *s2, size_t n);
 
+// atoi实现感觉很好，可以抄一抄
 ngx_int_t ngx_atoi(u_char *line, size_t n);
+// 将字符串表示的浮点数转成整数，point表示此浮点数的小数点需向右移动位数
 ngx_int_t ngx_atofp(u_char *line, size_t n, size_t point);
+// 将字符串数字转换成ssize_t类型
 ssize_t ngx_atosz(u_char *line, size_t n);
+// 将字符串数字转换成off_t类型
 off_t ngx_atoof(u_char *line, size_t n);
+// 将字符串数字转换成time_t类型
 time_t ngx_atotm(u_char *line, size_t n);
+// 将16进制表示的字符串转为int类型
 ngx_int_t ngx_hextoi(u_char *line, size_t n);
 
+// 将字符串转为16进制表示的字符串，src中字符的高/低4位分别表示为16进制字符
 u_char *ngx_hex_dump(u_char *dst, u_char *src, size_t len);
 
 
