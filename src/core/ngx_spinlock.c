@@ -25,6 +25,7 @@ ngx_spinlock(ngx_atomic_t *lock, ngx_atomic_int_t value, ngx_uint_t spin)
 
         if (ngx_ncpu > 1) {
 
+            // 让出CPU的次数越来越多
             for (n = 1; n < spin; n <<= 1) {
 
                 for (i = 0; i < n; i++) {
