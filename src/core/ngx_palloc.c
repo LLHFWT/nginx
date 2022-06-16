@@ -143,23 +143,28 @@ ngx_palloc_small(ngx_pool_t *pool, size_t size, ngx_uint_t align)
 
     p = pool->current;
 
+    // 先在已创建的pool中查找
     do {
         m = p->d.last;
 
+        // 指针地址对齐
         if (align) {
             m = ngx_align_ptr(m, NGX_ALIGNMENT);
         }
 
+        // last指针维护着内存分配到的位置，如果剩余待分配空间足够，则直接返回
         if ((size_t) (p->d.end - m) >= size) {
             p->d.last = m + size;
 
             return m;
         }
 
+        // 查找下一个pool
         p = p->d.next;
 
     } while (p);
 
+    // 没有了可用空间，新创建一个pool
     return ngx_palloc_block(pool, size);
 }
 
@@ -171,8 +176,10 @@ ngx_palloc_block(ngx_pool_t *pool, size_t size)
     size_t       psize;
     ngx_pool_t  *p, *new;
 
+    // 计算pool的大小
     psize = (size_t) (pool->d.end - (u_char *) pool);
 
+    // 新分配一个pool
     m = ngx_memalign(NGX_POOL_ALIGNMENT, psize, pool->log);
     if (m == NULL) {
         return NULL;
@@ -184,10 +191,12 @@ ngx_palloc_block(ngx_pool_t *pool, size_t size)
     new->d.next = NULL;
     new->d.failed = 0;
 
+    // 只保留ngx_pool_data_t部分，其他字段可用于分配内存
     m += sizeof(ngx_pool_data_t);
     m = ngx_align_ptr(m, NGX_ALIGNMENT);
     new->d.last = m + size;
 
+    // 如果当前pool中分配内存失败超过四次，则跳过此pool
     for (p = pool->current; p->d.next; p = p->d.next) {
         if (p->d.failed++ > 4) {
             pool->current = p->d.next;
