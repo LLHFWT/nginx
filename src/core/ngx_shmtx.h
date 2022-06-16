@@ -12,7 +12,7 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-
+// ngx_atomic_t是个volatile整数
 typedef struct {
     ngx_atomic_t   lock;
     // 如果系统支持信号量则使用信号量唤醒等待锁的进程
