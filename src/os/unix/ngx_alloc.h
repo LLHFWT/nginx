@@ -12,10 +12,10 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
-
+// 对malloc和calloc的封装
 void *ngx_alloc(size_t size, ngx_log_t *log);
 void *ngx_calloc(size_t size, ngx_log_t *log);
-
+// 封装free
 #define ngx_free          free
 
 
@@ -24,6 +24,7 @@ void *ngx_calloc(size_t size, ngx_log_t *log);
  * Solaris has memalign()
  * FreeBSD 7.0 has posix_memalign(), besides, early version's malloc()
  * aligns allocations bigger than page size at the page boundary
+ * 预对齐的内存分配
  */
 
 #if (NGX_HAVE_POSIX_MEMALIGN || NGX_HAVE_MEMALIGN)
