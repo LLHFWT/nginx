@@ -51,6 +51,7 @@ ngx_uint_t ngx_shmtx_trylock(ngx_shmtx_t *mtx);
 void ngx_shmtx_lock(ngx_shmtx_t *mtx);
 // 释放锁
 void ngx_shmtx_unlock(ngx_shmtx_t *mtx);
+// 强制释放pid进程持有的锁
 ngx_uint_t ngx_shmtx_force_unlock(ngx_shmtx_t *mtx, ngx_pid_t pid);
 
 
