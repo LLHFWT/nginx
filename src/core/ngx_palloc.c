@@ -20,17 +20,24 @@ ngx_create_pool(size_t size, ngx_log_t *log)
 {
     ngx_pool_t  *p;
 
+    // 按照16字节内存对齐分配内存
     p = ngx_memalign(NGX_POOL_ALIGNMENT, size, log);
     if (p == NULL) {
         return NULL;
     }
 
+    // 设置可分配内存区起始位置
     p->d.last = (u_char *) p + sizeof(ngx_pool_t);
+    // 可分配内存区结束位置
     p->d.end = (u_char *) p + size;
+    // 指向与之连接的下一个内存pool
     p->d.next = NULL;
+    // 分配失败次数
     p->d.failed = 0;
 
+    // 可用内存分配区域大小
     size = size - sizeof(ngx_pool_t);
+    // 最大一次性分配的内存大小，不超过一页
     p->max = (size < NGX_MAX_ALLOC_FROM_POOL) ? size : NGX_MAX_ALLOC_FROM_POOL;
 
     p->current = p;
@@ -50,6 +57,7 @@ ngx_destroy_pool(ngx_pool_t *pool)
     ngx_pool_large_t    *l;
     ngx_pool_cleanup_t  *c;
 
+    // 调用内存释放hook函数链表
     for (c = pool->cleanup; c; c = c->next) {
         if (c->handler) {
             ngx_log_debug1(NGX_LOG_DEBUG_ALLOC, pool->log, 0,
@@ -58,34 +66,14 @@ ngx_destroy_pool(ngx_pool_t *pool)
         }
     }
 
-#if (NGX_DEBUG)
-
-    /*
-     * we could allocate the pool->log from this pool
-     * so we cannot use this log while free()ing the pool
-     */
-
-    for (l = pool->large; l; l = l->next) {
-        ngx_log_debug1(NGX_LOG_DEBUG_ALLOC, pool->log, 0, "free: %p", l->alloc);
-    }
-
-    for (p = pool, n = pool->d.next; /* void */; p = n, n = n->d.next) {
-        ngx_log_debug2(NGX_LOG_DEBUG_ALLOC, pool->log, 0,
-                       "free: %p, unused: %uz", p, p->d.end - p->d.last);
-
-        if (n == NULL) {
-            break;
-        }
-    }
-
-#endif
-
+    // 释放分配的大块内存
     for (l = pool->large; l; l = l->next) {
         if (l->alloc) {
             ngx_free(l->alloc);
         }
     }
 
+    // 如果还有与之相连的其他pool，一块释放，但并不调用其他的destroy
     for (p = pool, n = pool->d.next; /* void */; p = n, n = n->d.next) {
         ngx_free(p);
 
@@ -102,12 +90,14 @@ ngx_reset_pool(ngx_pool_t *pool)
     ngx_pool_t        *p;
     ngx_pool_large_t  *l;
 
+    // 释放大块内存
     for (l = pool->large; l; l = l->next) {
         if (l->alloc) {
             ngx_free(l->alloc);
         }
     }
 
+    // 重置与之相连的其他pool的last和failed
     for (p = pool; p; p = p->d.next) {
         p->d.last = (u_char *) p + sizeof(ngx_pool_t);
         p->d.failed = 0;
@@ -118,20 +108,20 @@ ngx_reset_pool(ngx_pool_t *pool)
     pool->large = NULL;
 }
 
-
+// 分配的内存是已对齐的
 void *
 ngx_palloc(ngx_pool_t *pool, size_t size)
 {
-#if !(NGX_DEBUG_PALLOC)
+    // if <= max 分配小内存
     if (size <= pool->max) {
         return ngx_palloc_small(pool, size, 1);
     }
-#endif
 
+    // 分配大内存
     return ngx_palloc_large(pool, size);
 }
 
-
+// 分配的内存未对齐
 void *
 ngx_pnalloc(ngx_pool_t *pool, size_t size)
 {
@@ -224,6 +214,7 @@ ngx_palloc_large(ngx_pool_t *pool, size_t size)
 
     n = 0;
 
+    // 检查large链表中是否有空的节点，有的话直接放入，最多查找三个节点
     for (large = pool->large; large; large = large->next) {
         if (large->alloc == NULL) {
             large->alloc = p;
@@ -235,12 +226,14 @@ ngx_palloc_large(ngx_pool_t *pool, size_t size)
         }
     }
 
+    // 从内存池中分配一块小内存描述large结构体
     large = ngx_palloc_small(pool, sizeof(ngx_pool_large_t), 1);
     if (large == NULL) {
         ngx_free(p);
         return NULL;
     }
 
+    // 将新分配的large放到链表头
     large->alloc = p;
     large->next = pool->large;
     pool->large = large;
@@ -248,24 +241,27 @@ ngx_palloc_large(ngx_pool_t *pool, size_t size)
     return p;
 }
 
-
+// 分配一块对齐的大内存，挂到pool的large链表上
 void *
 ngx_pmemalign(ngx_pool_t *pool, size_t size, size_t alignment)
 {
     void              *p;
     ngx_pool_large_t  *large;
 
+    // 根据对齐值分配一块大内存
     p = ngx_memalign(alignment, size, pool->log);
     if (p == NULL) {
         return NULL;
     }
 
+    // 从内存池中分配一块小内存描述large结构体
     large = ngx_palloc_small(pool, sizeof(ngx_pool_large_t), 1);
     if (large == NULL) {
         ngx_free(p);
         return NULL;
     }
 
+    // 将新分配的large放到链表头
     large->alloc = p;
     large->next = pool->large;
     pool->large = large;
@@ -273,12 +269,13 @@ ngx_pmemalign(ngx_pool_t *pool, size_t size, size_t alignment)
     return p;
 }
 
-
+// 释放从内存池中分配的内存，小块内存不处理，大块内存释放
 ngx_int_t
 ngx_pfree(ngx_pool_t *pool, void *p)
 {
     ngx_pool_large_t  *l;
 
+    // 检查是否是某个大块内存，释放掉
     for (l = pool->large; l; l = l->next) {
         if (p == l->alloc) {
             ngx_log_debug1(NGX_LOG_DEBUG_ALLOC, pool->log, 0,
@@ -290,10 +287,11 @@ ngx_pfree(ngx_pool_t *pool, void *p)
         }
     }
 
+    // 小块内存不处理
     return NGX_DECLINED;
 }
 
-
+// 分配内存并进行0值初始化
 void *
 ngx_pcalloc(ngx_pool_t *pool, size_t size)
 {
