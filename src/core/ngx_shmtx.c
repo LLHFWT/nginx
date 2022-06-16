@@ -178,7 +178,7 @@ ngx_shmtx_wakeup(ngx_shmtx_t *mtx)
 #if (NGX_HAVE_POSIX_SEM)
     ngx_atomic_uint_t  wait;
 
-    // 检查是否有进程在等待
+    // 检查是否有信号量
     if (!mtx->semaphore) {
         return;
     }
@@ -188,6 +188,7 @@ ngx_shmtx_wakeup(ngx_shmtx_t *mtx)
 
         wait = *mtx->wait;
 
+        // 当没有进程在等待时直接返回
         if ((ngx_atomic_int_t) wait <= 0) {
             return;
         }
