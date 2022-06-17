@@ -58,7 +58,7 @@ typedef struct {
     void             *addr;
 } ngx_slab_pool_t;
 
-
+// 初始化共享内存池的各种size值
 void ngx_slab_sizes_init(void);
 void ngx_slab_init(ngx_slab_pool_t *pool);
 void *ngx_slab_alloc(ngx_slab_pool_t *pool, size_t size);
