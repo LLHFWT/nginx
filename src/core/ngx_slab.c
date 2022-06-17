@@ -50,7 +50,7 @@
     (ngx_slab_page_t *) ((page)->prev & ~NGX_SLAB_PAGE_MASK)
 
 // ngx_pagesize_shift代表描述页大小的偏移量，比如4096大小的页对应的shift是12
-// 该宏可以获取实际的页对应的描述结构体的地址
+// 该宏可以根据页结构体的地址获取实际的页对应的地址
 #define ngx_slab_page_addr(pool, page)                                        \
     ((((page) - (pool)->pages) << ngx_pagesize_shift)                         \
      + (uintptr_t) (pool)->start)
@@ -210,9 +210,11 @@ ngx_slab_alloc_locked(ngx_slab_pool_t *pool, size_t size)
         ngx_log_debug1(NGX_LOG_DEBUG_ALLOC, ngx_cycle->log, 0,
                        "slab alloc: %uz", size);
 
+        // page为分配的页结构体的起始地址
         page = ngx_slab_alloc_pages(pool, (size >> ngx_pagesize_shift)
                                           + ((size % ngx_pagesize) ? 1 : 0));
         if (page) {
+            // 获取对应的页的起始地址
             p = ngx_slab_page_addr(pool, page);
 
         } else {
@@ -222,25 +224,26 @@ ngx_slab_alloc_locked(ngx_slab_pool_t *pool, size_t size)
         goto done;
     }
 
-    if (size > pool->min_size) {
+    if (size > pool->min_size) { // 分配空间大于min_size(8字节)，计算它的shift，并据此计算它属于哪一级slot
         shift = 1;
         for (s = size - 1; s >>= 1; shift++) { /* void */ }
         slot = shift - pool->min_shift;
 
-    } else {
+    } else { // 分配空间小于min_size，按照min_size分配，即8字节
         shift = pool->min_shift;
         slot = 0;
     }
 
+    // 更新对应slot的统计信息
     pool->stats[slot].reqs++;
 
     ngx_log_debug2(NGX_LOG_DEBUG_ALLOC, ngx_cycle->log, 0,
                    "slab alloc: %uz slot: %ui", size, slot);
 
-    slots = ngx_slab_slots(pool);
-    page = slots[slot].next;
+    slots = ngx_slab_slots(pool); // slots分级数组对应的起始地址
+    page = slots[slot].next; // slots分级数组成员的初始值next指向自己，标记尚未分配过本级别内存块
 
-    if (page->next != page) {
+    if (page->next != page) { // 如果该级别内存已经分配过
 
         if (shift < ngx_slab_exact_shift) {
 
@@ -346,6 +349,7 @@ ngx_slab_alloc_locked(ngx_slab_pool_t *pool, size_t size)
         ngx_debug_point();
     }
 
+    // 分配一个新的页
     page = ngx_slab_alloc_pages(pool, 1);
 
     if (page) {
@@ -423,6 +427,7 @@ ngx_slab_alloc_locked(ngx_slab_pool_t *pool, size_t size)
 
     p = 0;
 
+    // 分配失败更新统计结果
     pool->stats[slot].fails++;
 
 done:
@@ -691,50 +696,55 @@ fail:
 }
 
 
+// 分配pages个完整的页
 static ngx_slab_page_t *
 ngx_slab_alloc_pages(ngx_slab_pool_t *pool, ngx_uint_t pages)
 {
     ngx_slab_page_t  *page, *p;
 
-    for (page = pool->free.next; page != &pool->free; page = page->next) {
+    for (page = pool->free.next; page != &pool->free; page = page->next) { // 遍历空闲页链表
 
-        if (page->slab >= pages) {
+        if (page->slab >= pages) { // 当前链表节点挂载的连续空闲页数足够分配
 
-            if (page->slab > pages) {
+            if (page->slab > pages) { // 当前链表节点挂载的连续空闲页数大于待分配页数
                 page[page->slab - 1].prev = (uintptr_t) &page[pages];
 
-                page[pages].slab = page->slab - pages;
-                page[pages].next = page->next;
-                page[pages].prev = page->prev;
+                // 以第pages页作为剩余空闲页的起始页，挂载到free链表上
+                page[pages].slab = page->slab - pages; // 更新当前节点剩余空闲页数
+                page[pages].next = page->next; // 挂载剩下的页
+                page[pages].prev = page->prev; // 更新prev节点
 
+                // 更新prev节点的链接
                 p = (ngx_slab_page_t *) page->prev;
                 p->next = &page[pages];
                 page->next->prev = (uintptr_t) &page[pages];
 
-            } else {
+            } else { // 当前节点连续的空闲页数正好够分配，直接把当前节点的前后节点相连
                 p = (ngx_slab_page_t *) page->prev;
                 p->next = page->next;
                 page->next->prev = page->prev;
             }
 
-            page->slab = pages | NGX_SLAB_PAGE_START;
-            page->next = NULL;
-            page->prev = NGX_SLAB_PAGE;
+            // 对该结构进行使用前初始化，然后返回
+            page->slab = pages | NGX_SLAB_PAGE_START; // 管理的页数 ｜ 首页标识
+            page->next = NULL; // 从free链表中删除
+            page->prev = NGX_SLAB_PAGE; // 被分配的prev记载page类型
 
-            pool->pfree -= pages;
+            pool->pfree -= pages; // 更新空闲页数
 
-            if (--pages == 0) {
+            if (--pages == 0) { // 如果只有一页直接返回
                 return page;
             }
 
+            // 申请了多个页
             for (p = page + 1; pages; pages--) {
-                p->slab = NGX_SLAB_PAGE_BUSY;
+                p->slab = NGX_SLAB_PAGE_BUSY; // 后面几页全部置为NGX_SLAB_PAGE_BUSY标记
                 p->next = NULL;
-                p->prev = NGX_SLAB_PAGE;
+                p->prev = NGX_SLAB_PAGE; // 记录page类型
                 p++;
             }
 
-            return page;
+            return page; // 返回首页
         }
     }
 
