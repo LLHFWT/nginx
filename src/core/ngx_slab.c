@@ -153,10 +153,10 @@ ngx_slab_init(ngx_slab_pool_t *pool)
 
     /* only "next" is used in list head */
     pool->free.slab = 0;
-    pool->free.next = page;
+    pool->free.next = page; // free.next指向第一个page结构体
     pool->free.prev = 0;
 
-    page->slab = pages;
+    page->slab = pages; // slab代表可用的页数
     page->next = &pool->free;
     page->prev = (uintptr_t) &pool->free;
 
