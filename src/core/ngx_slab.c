@@ -40,7 +40,7 @@
 
 #endif
 
-
+// slab slots开始地址
 #define ngx_slab_slots(pool)                                                  \
     (ngx_slab_page_t *) ((u_char *) (pool) + sizeof(ngx_slab_pool_t))
 
@@ -49,6 +49,8 @@
 #define ngx_slab_page_prev(page)                                              \
     (ngx_slab_page_t *) ((page)->prev & ~NGX_SLAB_PAGE_MASK)
 
+// ngx_pagesize_shift代表描述页大小的偏移量，比如4096大小的页对应的shift是12
+// 该宏可以获取实际的页对应的描述结构体的地址
 #define ngx_slab_page_addr(pool, page)                                        \
     ((((page) - (pool)->pages) << ngx_pagesize_shift)                         \
      + (uintptr_t) (pool)->start)
@@ -77,7 +79,7 @@ static void ngx_slab_error(ngx_slab_pool_t *pool, ngx_uint_t level,
     char *text);
 
 
-static ngx_uint_t  ngx_slab_max_size;
+static ngx_uint_t  ngx_slab_max_size; // pagesize / 2
 static ngx_uint_t  ngx_slab_exact_size;
 static ngx_uint_t  ngx_slab_exact_shift;
 
