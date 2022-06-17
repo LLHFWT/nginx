@@ -106,17 +106,22 @@ ngx_slab_init(ngx_slab_pool_t *pool)
     ngx_uint_t        i, n, pages;
     ngx_slab_page_t  *slots, *page;
 
+    // 池中最小可分配内存大小计算
     pool->min_size = (size_t) 1 << pool->min_shift;
 
+    // 跳过结构体ngx_slab_pool_t占用的内存
     slots = ngx_slab_slots(pool);
 
+    // 计算剩余内存大小和起始位置
     p = (u_char *) slots;
     size = pool->end - p;
 
     ngx_slab_junk(p, size);
 
+    // 计算一页内存可划分为多少种内存块，比如12 - 3 = 9，即8字节、16字节、32字节....
     n = ngx_pagesize_shift - pool->min_shift;
 
+    // 初始化n个ngx_slab_page_t用于描述各种大小的内存块
     for (i = 0; i < n; i++) {
         /* only "next" is used in list head */
         slots[i].slab = 0;
@@ -124,20 +129,26 @@ ngx_slab_init(ngx_slab_pool_t *pool)
         slots[i].prev = 0;
     }
 
+    // 将指针跳过这n个ngx_slab_page_t，继续往下初始化
     p += n * sizeof(ngx_slab_page_t);
 
+    // 初始化n个ngx_slab_stat_t用于统计信息，继续往下
     pool->stats = (ngx_slab_stat_t *) p;
     ngx_memzero(pool->stats, n * sizeof(ngx_slab_stat_t));
 
     p += n * sizeof(ngx_slab_stat_t);
 
+    // 更新剩余内存空间大小
     size -= n * (sizeof(ngx_slab_page_t) + sizeof(ngx_slab_stat_t));
 
+    // 计算剩余内存空间可以放置多少页
     pages = (ngx_uint_t) (size / (ngx_pagesize + sizeof(ngx_slab_page_t)));
 
+    // 初始化pages个ngx_slab_page_t用于描述每一页
     pool->pages = (ngx_slab_page_t *) p;
     ngx_memzero(pool->pages, pages * sizeof(ngx_slab_page_t));
 
+    // page指向第一页的ngx_slab_page_t
     page = pool->pages;
 
     /* only "next" is used in list head */
@@ -149,16 +160,20 @@ ngx_slab_init(ngx_slab_pool_t *pool)
     page->next = &pool->free;
     page->prev = (uintptr_t) &pool->free;
 
+    // 对剩余内存按照页大小进行对齐，start指向的就是可用的第一页
     pool->start = ngx_align_ptr(p + pages * sizeof(ngx_slab_page_t),
                                 ngx_pagesize);
 
+    // 对齐后调整可用页数
     m = pages - (pool->end - pool->start) / ngx_pagesize;
     if (m > 0) {
         pages -= m;
         page->slab = pages;
     }
 
+    // last指向可用的最后一页的ngx_slab_page_t
     pool->last = pool->pages + pages;
+    // 可用页数
     pool->pfree = pages;
 
     pool->log_nomem = 1;
