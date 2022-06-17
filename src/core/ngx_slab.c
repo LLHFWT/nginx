@@ -353,12 +353,12 @@ ngx_slab_alloc_locked(ngx_slab_pool_t *pool, size_t size)
     page = ngx_slab_alloc_pages(pool, 1);
 
     if (page) {
-        if (shift < ngx_slab_exact_shift) {
-            bitmap = (uintptr_t *) ngx_slab_page_addr(pool, page);
+        if (shift < ngx_slab_exact_shift) { // 如果是小块内存
+            bitmap = (uintptr_t *) ngx_slab_page_addr(pool, page); // 将该页的前面几块内存用作bitmap
 
-            n = (ngx_pagesize >> shift) / ((1 << shift) * 8);
+            n = (ngx_pagesize >> shift) / ((1 << shift) * 8); // 计算bitmap需要占用几个内存块
 
-            if (n == 0) {
+            if (n == 0) { // 至少占用一个内存块
                 n = 1;
             }
 
@@ -368,48 +368,51 @@ ngx_slab_alloc_locked(ngx_slab_pool_t *pool, size_t size)
                 bitmap[i] = NGX_SLAB_BUSY;
             }
 
+            // 把bitmap数组占用的内存块加上本次分配的一个快，对应的bitmap位置1
             m = ((uintptr_t) 1 << ((n + 1) % (8 * sizeof(uintptr_t)))) - 1;
             bitmap[i] = m;
 
+            // 计算需要几个64bit的 bitmap
             map = (ngx_pagesize >> shift) / (8 * sizeof(uintptr_t));
 
             for (i = i + 1; i < map; i++) {
-                bitmap[i] = 0;
+                bitmap[i] = 0; // 后面的bitmap置零，表明内存块空闲
             }
 
-            page->slab = shift;
-            page->next = &slots[slot];
+            page->slab = shift; // slab记录shift，用于free时得到得到内存块大小
+            page->next = &slots[slot]; // 当前页挂载到slots[slot]双向链表上
             page->prev = (uintptr_t) &slots[slot] | NGX_SLAB_SMALL;
 
             slots[slot].next = page;
 
-            pool->stats[slot].total += (ngx_pagesize >> shift) - n;
+            pool->stats[slot].total += (ngx_pagesize >> shift) - n; // 当前页可划分的内存块数 - bitmap占用的内存块数
 
-            p = ngx_slab_page_addr(pool, page) + (n << shift);
+            p = ngx_slab_page_addr(pool, page) + (n << shift); // 所在的页的起始地址 + 分配的内存块的页内偏移地址
 
-            pool->stats[slot].used++;
+            pool->stats[slot].used++; // 该等级内存块的已分配数量
 
             goto done;
 
-        } else if (shift == ngx_slab_exact_shift) {
+        } else if (shift == ngx_slab_exact_shift) { // page->slab是64位，正好可以做bitmap
 
-            page->slab = 1;
+            page->slab = 1; // bitmap第一个位 置为1，表示第一个内存块被分配
+            // 当前页挂载到slots[slot]双向链表上，再分配同一等级的内存块可以从该页分配
             page->next = &slots[slot];
-            page->prev = (uintptr_t) &slots[slot] | NGX_SLAB_EXACT;
+            page->prev = (uintptr_t) &slots[slot] | NGX_SLAB_EXACT; // 地址低位记录页类型，因为是对齐的，所以低位是0
 
             slots[slot].next = page;
 
-            pool->stats[slot].total += 8 * sizeof(uintptr_t);
+            pool->stats[slot].total += 8 * sizeof(uintptr_t); // 更新该等级内存块总数
 
-            p = ngx_slab_page_addr(pool, page);
+            p = ngx_slab_page_addr(pool, page);  // 直接返回页首地址即可
 
             pool->stats[slot].used++;
 
             goto done;
 
-        } else { /* shift > ngx_slab_exact_shift */
+        } else { /* shift > ngx_slab_exact_shift 大块内存 */
 
-            page->slab = ((uintptr_t) 1 << NGX_SLAB_MAP_SHIFT) | shift;
+            page->slab = ((uintptr_t) 1 << NGX_SLAB_MAP_SHIFT) | shift; // 低32位记录shift，高32位记录bitmap
             page->next = &slots[slot];
             page->prev = (uintptr_t) &slots[slot] | NGX_SLAB_BIG;
 
