@@ -33,9 +33,9 @@ ngx_list_push(ngx_list_t *l)
     void             *elt;
     ngx_list_part_t  *last;
 
-    last = l->last;
+    last = l->last; // 访问最后一个链表节点
 
-    if (last->nelts == l->nalloc) {
+    if (last->nelts == l->nalloc) { // 如果最后一个节点已满
 
         /* the last part is full, allocate a new list part */
 
@@ -49,6 +49,7 @@ ngx_list_push(ngx_list_t *l)
             return NULL;
         }
 
+        // 更新last的指向
         last->nelts = 0;
         last->next = NULL;
 
@@ -56,6 +57,7 @@ ngx_list_push(ngx_list_t *l)
         l->last = last;
     }
 
+    // 返回最后一个节点的下一个元素位置
     elt = (char *) last->elts + l->size * last->nelts;
     last->nelts++;
 
