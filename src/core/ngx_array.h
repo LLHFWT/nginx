@@ -15,10 +15,10 @@
 
 // nginx数组
 typedef struct {
-    void        *elts;
-    ngx_uint_t   nelts;
-    size_t       size;
-    ngx_uint_t   nalloc;
+    void        *elts; // 元素指针地址
+    ngx_uint_t   nelts; // 当前元素数
+    size_t       size; // 每个元素的大小
+    ngx_uint_t   nalloc; // 已分配的元素空间个数
     ngx_pool_t  *pool;
 } ngx_array_t;
 
