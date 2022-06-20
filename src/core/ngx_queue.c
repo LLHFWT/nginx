@@ -19,14 +19,15 @@ ngx_queue_middle(ngx_queue_t *queue)
 {
     ngx_queue_t  *middle, *next;
 
-    middle = ngx_queue_head(queue);
+    middle = ngx_queue_head(queue); // 获取第一个节点
 
-    if (middle == ngx_queue_last(queue)) {
+    if (middle == ngx_queue_last(queue)) { // 如果第一个鸡诶单和最后一个节点相同，说明只有一个节点
         return middle;
     }
 
     next = ngx_queue_head(queue);
 
+    // 快慢指针法查找中间节点
     for ( ;; ) {
         middle = ngx_queue_next(middle);
 
@@ -55,7 +56,7 @@ ngx_queue_sort(ngx_queue_t *queue,
 
     q = ngx_queue_head(queue);
 
-    if (q == ngx_queue_last(queue)) {
+    if (q == ngx_queue_last(queue)) { // 如果只有一个节点或者为空，直接返回
         return;
     }
 
