@@ -498,49 +498,49 @@ ngx_slab_free_locked(ngx_slab_pool_t *pool, void *p)
 
     ngx_log_debug1(NGX_LOG_DEBUG_ALLOC, ngx_cycle->log, 0, "slab free: %p", p);
 
-    if ((u_char *) p < pool->start || (u_char *) p > pool->end) {
+    if ((u_char *) p < pool->start || (u_char *) p > pool->end) { // 检查要释放的内存是否越界
         ngx_slab_error(pool, NGX_LOG_ALERT, "ngx_slab_free(): outside of pool");
         goto fail;
     }
 
-    n = ((u_char *) p - pool->start) >> ngx_pagesize_shift;
-    page = &pool->pages[n];
+    n = ((u_char *) p - pool->start) >> ngx_pagesize_shift; // 计算待释放的地址在第几页
+    page = &pool->pages[n]; // 获取它的页管理结构
     slab = page->slab;
-    type = ngx_slab_page_type(page);
+    type = ngx_slab_page_type(page); // 获取本页的类型
 
     switch (type) {
 
-    case NGX_SLAB_SMALL:
+    case NGX_SLAB_SMALL: // 小块内存页
 
-        shift = slab & NGX_SLAB_SHIFT_MASK;
-        size = (size_t) 1 << shift;
+        shift = slab & NGX_SLAB_SHIFT_MASK; // slab记录了shift
+        size = (size_t) 1 << shift; // 计算内存块大小
 
-        if ((uintptr_t) p & (size - 1)) {
+        if ((uintptr_t) p & (size - 1)) { // 地址必须是内存块大小的整数倍，否则非法
             goto wrong_chunk;
         }
 
-        n = ((uintptr_t) p & (ngx_pagesize - 1)) >> shift;
-        m = (uintptr_t) 1 << (n % (8 * sizeof(uintptr_t)));
-        n /= 8 * sizeof(uintptr_t);
+        n = ((uintptr_t) p & (ngx_pagesize - 1)) >> shift; // 指针指向内存块的页内索引号
+        m = (uintptr_t) 1 << (n % (8 * sizeof(uintptr_t))); // 内存块在bitmap中对应的位
+        n /= 8 * sizeof(uintptr_t); // 内存块对应的bitmap在数组中的索引号
         bitmap = (uintptr_t *)
-                             ((uintptr_t) p & ~((uintptr_t) ngx_pagesize - 1));
+                             ((uintptr_t) p & ~((uintptr_t) ngx_pagesize - 1)); // 页起始地址
 
-        if (bitmap[n] & m) {
+        if (bitmap[n] & m) { // 通过bitmap[n]的第m位是否被置1判断该内存是否已经释放
             slot = shift - pool->min_shift;
 
-            if (page->next == NULL) {
+            if (page->next == NULL) { // 当前页不在分级链表中，表明已经占满了
                 slots = ngx_slab_slots(pool);
 
-                page->next = slots[slot].next;
+                page->next = slots[slot].next; // 回收内存块后重新插入分级链表中
                 slots[slot].next = page;
 
                 page->prev = (uintptr_t) &slots[slot] | NGX_SLAB_SMALL;
                 page->next->prev = (uintptr_t) page | NGX_SLAB_SMALL;
             }
 
-            bitmap[n] &= ~m;
+            bitmap[n] &= ~m; // 对应位置0，标记已释放
 
-            n = (ngx_pagesize >> shift) / ((1 << shift) * 8);
+            n = (ngx_pagesize >> shift) / ((1 << shift) * 8); // bitmap共占用几个内存块
 
             if (n == 0) {
                 n = 1;
@@ -549,18 +549,19 @@ ngx_slab_free_locked(ngx_slab_pool_t *pool, void *p)
             i = n / (8 * sizeof(uintptr_t));
             m = ((uintptr_t) 1 << (n % (8 * sizeof(uintptr_t)))) - 1;
 
-            if (bitmap[i] & ~m) {
+            if (bitmap[i] & ~m) { // 除了bitmap只能用的内存块外还有其他块被占用，表明当前页不空
                 goto done;
             }
 
-            map = (ngx_pagesize >> shift) / (8 * sizeof(uintptr_t));
+            map = (ngx_pagesize >> shift) / (8 * sizeof(uintptr_t)); // 计算bitmap数组长度
 
-            for (i = i + 1; i < map; i++) {
+            for (i = i + 1; i < map; i++) { // 遍历bitmap数组，只要有bitmap中的位不去安慰0，则表明当前页不为空
                 if (bitmap[i]) {
                     goto done;
                 }
             }
 
+            // 走到这里说明除了bitmap数组占用的内存块，所有内存都已释放，回收当前页
             ngx_slab_free_pages(pool, page, 1);
 
             pool->stats[slot].total -= (ngx_pagesize >> shift) - n;
@@ -573,32 +574,33 @@ ngx_slab_free_locked(ngx_slab_pool_t *pool, void *p)
     case NGX_SLAB_EXACT:
 
         m = (uintptr_t) 1 <<
-                (((uintptr_t) p & (ngx_pagesize - 1)) >> ngx_slab_exact_shift);
+                (((uintptr_t) p & (ngx_pagesize - 1)) >> ngx_slab_exact_shift); // 内存块对应的bitmap位
         size = ngx_slab_exact_size;
 
-        if ((uintptr_t) p & (size - 1)) {
+        if ((uintptr_t) p & (size - 1)) { // 地址大小必须是内存块大小的整数倍
             goto wrong_chunk;
         }
 
-        if (slab & m) {
+        if (slab & m) { // 该内存块还没回收
             slot = ngx_slab_exact_shift - pool->min_shift;
 
-            if (slab == NGX_SLAB_BUSY) {
+            if (slab == NGX_SLAB_BUSY) { // 当前页已被占满不在分级链表中
                 slots = ngx_slab_slots(pool);
 
-                page->next = slots[slot].next;
+                page->next = slots[slot].next; // 重新插入分级链表，后续分配同级内存块时可从本页分配
                 slots[slot].next = page;
 
                 page->prev = (uintptr_t) &slots[slot] | NGX_SLAB_EXACT;
                 page->next->prev = (uintptr_t) page | NGX_SLAB_EXACT;
             }
 
-            page->slab &= ~m;
+            page->slab &= ~m; // 位置0，表明被释放
 
-            if (page->slab) {
+            if (page->slab) { // bitmap部位0，表示还有内存块被使用
                 goto done;
             }
 
+            // 回收当前页
             ngx_slab_free_pages(pool, page, 1);
 
             pool->stats[slot].total -= 8 * sizeof(uintptr_t);
@@ -772,23 +774,23 @@ ngx_slab_free_pages(ngx_slab_pool_t *pool, ngx_slab_page_t *page,
 {
     ngx_slab_page_t  *prev, *join;
 
-    pool->pfree += pages;
+    pool->pfree += pages; // 更新总空闲页数
 
-    page->slab = pages--;
+    page->slab = pages--; // 当前页管理器管理的页数
 
-    if (pages) {
+    if (pages) { // 如果是多页，除第一页外page结构体清空
         ngx_memzero(&page[1], pages * sizeof(ngx_slab_page_t));
     }
 
-    if (page->next) {
+    if (page->next) { // 小块内存分配的页，挂载在分级链表中，把页从分级链表上摘除
         prev = ngx_slab_page_prev(page);
         prev->next = page->next;
         page->next->prev = page->prev;
     }
 
-    join = page + page->slab;
+    join = page + page->slab; // 指向待释放的共享内存空间后面的一个页
 
-    if (join < pool->last) {
+    if (join < pool->last) { // 不是最后一个页
 
         if (ngx_slab_page_type(join) == NGX_SLAB_PAGE) {
 
