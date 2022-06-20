@@ -245,36 +245,37 @@ ngx_slab_alloc_locked(ngx_slab_pool_t *pool, size_t size)
 
     if (page->next != page) { // 如果该级别内存已经分配过
 
-        if (shift < ngx_slab_exact_shift) {
+        if (shift < ngx_slab_exact_shift) { // 小块
 
-            bitmap = (uintptr_t *) ngx_slab_page_addr(pool, page);
+            bitmap = (uintptr_t *) ngx_slab_page_addr(pool, page); // 页内数据空间起始位置是bitmap数组
 
-            map = (ngx_pagesize >> shift) / (8 * sizeof(uintptr_t));
+            map = (ngx_pagesize >> shift) / (8 * sizeof(uintptr_t)); // 计算需要几个64bit的bitmap
 
-            for (n = 0; n < map; n++) {
+            for (n = 0; n < map; n++) { // 遍历bitmap数组
 
-                if (bitmap[n] != NGX_SLAB_BUSY) {
+                if (bitmap[n] != NGX_SLAB_BUSY) { // 当前bitmap对应的内存块还未分配完
 
-                    for (m = 1, i = 0; m; m <<= 1, i++) {
-                        if (bitmap[n] & m) {
+                    for (m = 1, i = 0; m; m <<= 1, i++) { // 遍历每一个bit位
+                        if (bitmap[n] & m) { // 如果当前块已经分配，继续下一个
                             continue;
                         }
 
-                        bitmap[n] |= m;
+                        bitmap[n] |= m; // 当前位未分配，置1，占上
 
-                        i = (n * 8 * sizeof(uintptr_t) + i) << shift;
+                        i = (n * 8 * sizeof(uintptr_t) + i) << shift; // 计算要分配的内存块再页内的偏移量
 
-                        p = (uintptr_t) bitmap + i;
+                        p = (uintptr_t) bitmap + i; // 要分配的内存块的起始地址
 
-                        pool->stats[slot].used++;
+                        pool->stats[slot].used++; // 更新统计数据
 
-                        if (bitmap[n] == NGX_SLAB_BUSY) {
-                            for (n = n + 1; n < map; n++) {
-                                if (bitmap[n] != NGX_SLAB_BUSY) {
+                        if (bitmap[n] == NGX_SLAB_BUSY) { // 如果当前内存块都被分配
+                            for (n = n + 1; n < map; n++) { // 检查剩余bitmap对应的内存块
+                                if (bitmap[n] != NGX_SLAB_BUSY) { // 如果当前页的内存块还没用完，返回
                                     goto done;
                                 }
                             }
 
+                            // 至此，该页的所有内存块都已用完，将它从slots[slot]链表中删除
                             prev = ngx_slab_page_prev(page);
                             prev->next = page->next;
                             page->next->prev = page->prev;
@@ -290,14 +291,15 @@ ngx_slab_alloc_locked(ngx_slab_pool_t *pool, size_t size)
 
         } else if (shift == ngx_slab_exact_shift) {
 
+            // page->slab记录bitmap
             for (m = 1, i = 0; m; m <<= 1, i++) {
                 if (page->slab & m) {
                     continue;
                 }
 
-                page->slab |= m;
+                page->slab |= m; // 占位
 
-                if (page->slab == NGX_SLAB_BUSY) {
+                if (page->slab == NGX_SLAB_BUSY) { // 如果本页已经分配完了，将其从slots[slot]链表上摘除
                     prev = ngx_slab_page_prev(page);
                     prev->next = page->next;
                     page->next->prev = page->prev;
@@ -306,15 +308,19 @@ ngx_slab_alloc_locked(ngx_slab_pool_t *pool, size_t size)
                     page->prev = NGX_SLAB_EXACT;
                 }
 
+                // 页起始地址加上内存块的页内偏移量即分配内存块的起始地址
                 p = ngx_slab_page_addr(pool, page) + (i << shift);
 
-                pool->stats[slot].used++;
+                pool->stats[slot].used++; // 更新统计数据
 
                 goto done;
             }
 
         } else { /* shift > ngx_slab_exact_shift */
 
+             /* 在这个级别的页中 page->slab 的高32位的部分位作为 bitmap，
+             * 具体占用多少位，据分配大小而定。如分配 256B, bitmap 占用 16位
+             */
             mask = ((uintptr_t) 1 << (ngx_pagesize >> shift)) - 1;
             mask <<= NGX_SLAB_MAP_SHIFT;
 
